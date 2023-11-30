@@ -84,7 +84,10 @@ export class Option<T extends Defined> {
    * const isSome = someOption.isSome(); // Returns: true
    */
   isSome(): boolean {
-    return this.match(() => true, () => false);
+    return this.match(
+      () => true,
+      () => false,
+    );
   }
 
   /**
@@ -109,7 +112,10 @@ export class Option<T extends Defined> {
    * const isNone = noneOption.isNone(); // Returns: true
    */
   isNone(): boolean {
-    return this.match(() => false, () => true);
+    return this.match(
+      () => false,
+      () => true,
+    );
   }
 
   /**
@@ -122,7 +128,10 @@ export class Option<T extends Defined> {
    * const value = someOption.expect("Expected the option to have a value."); // Returns: 42
    */
   expect(message: string): T {
-    return this.match((value) => value, () => raise(message));
+    return this.match(
+      (value) => value,
+      () => raise(message),
+    );
   }
 
   /**
@@ -150,7 +159,10 @@ export class Option<T extends Defined> {
    * const value = someOption.unwrapOr(0); // Returns: 42
    */
   unwrapOr(defaultValue: T): T {
-    return this.match((value) => value, () => defaultValue);
+    return this.match(
+      (value) => value,
+      () => defaultValue,
+    );
   }
 
   /**
@@ -238,7 +250,10 @@ export class Option<T extends Defined> {
    * const result = someOption.okOr("Error message"); // Returns: Result.Ok(42)
    */
   okOr<E extends Defined>(err: E): Result<T, E> {
-    return this.match((value) => Ok(value) as Result<T, E>, () => Err(err));
+    return this.match(
+      (value) => Ok(value) as Result<T, E>,
+      () => Err(err),
+    );
   }
 
   /**
@@ -252,7 +267,10 @@ export class Option<T extends Defined> {
    * const result = someOption.okOrElse(() => "Error message"); // Returns: Result.Ok(42)
    */
   okOrElse<E extends Defined>(fn: () => E): Result<T, E> {
-    return this.match((value) => Ok(value) as Result<T, E>, () => Err(fn()));
+    return this.match(
+      (value) => Ok(value) as Result<T, E>,
+      () => Err(fn()),
+    );
   }
 
   /**
@@ -267,7 +285,10 @@ export class Option<T extends Defined> {
    * const result = someOptionA.and(someOptionB); // Returns: Option.Some("Hello")
    */
   and<U extends Defined>(optb: Option<U>): Option<U> {
-    return this.match(() => optb, () => this as unknown as Option<U>);
+    return this.match(
+      () => optb,
+      () => this as unknown as Option<U>,
+    );
   }
 
   /**
@@ -311,7 +332,10 @@ export class Option<T extends Defined> {
    * const result = someOptionA.or(someOptionB); // Returns: Option.Some(42)
    */
   or(optb: Option<T>): Option<T> {
-    return this.match(() => this, () => optb);
+    return this.match(
+      () => this,
+      () => optb,
+    );
   }
 
   /**
@@ -340,47 +364,6 @@ export class Option<T extends Defined> {
   xor(optb: Option<T>): Option<T> {
     if (this.isSome() && optb.isNone()) return this;
     if (this.isNone() && optb.isSome()) return optb;
-    return new Option();
-  }
-
-  /**
-   * Combines two options into a single option containing a tuple of their values. If both options have values (Some), returns a new option with a tuple. If either option is None, returns a new None.
-   * @param {Option<U>} optb - The second option to combine with the first option.
-   * @returns {Option<[T, U]>} The combined option containing a tuple.
-   * @method
-   * @template U - The type of the value inside the second option.
-   * @example
-   * const someOptionA = Option.Some(42);
-   * const someOptionB = Option.Some("Hello");
-   * const result = someOptionA.zip(someOptionB); // Returns: Option.Some([42, "Hello"])
-   */
-  zip<U extends Defined>(optb: Option<U>): Option<[T, U]> {
-    if (this.isSome() && optb.isSome()) {
-      return new Option([this.unwrap(), optb.unwrap()]);
-    }
-    return new Option();
-  }
-
-  /**
-   * Combines two options using a custom function. If both options have values (Some), returns a new option with the result of applying the function to their values. If either option is None, returns a new None.
-   * @param {Option<U>} optb - The second option to combine with the first option.
-   * @param {(a: T, b: U) => R} fn - The function to apply to the values inside the options.
-   * @returns {Option<R>} The combined option with the result of the function.
-   * @method
-   * @template U - The type of the value inside the second option.
-   * @template R - The type of the result after applying the function.
-   * @example
-   * const someOptionA = Option.Some(42);
-   * const someOptionB = Option.Some(24);
-   * const result = someOptionA.zipWith(someOptionB, (a, b) => a + b); // Returns: Option.Some(66)
-   */
-  zipWith<U extends Defined, R extends Defined>(
-    optb: Option<U>,
-    fn: (a: T, b: U) => R,
-  ): Option<R> {
-    if (this.isSome() && optb.isSome()) {
-      return new Option(fn(this.unwrap(), optb.unwrap()));
-    }
     return new Option();
   }
 }

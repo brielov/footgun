@@ -1,5 +1,9 @@
 {
   "tasks": {
     "dev": "deno run --watch main.ts"
+  },
+  "imports": {
+    "assert": "https://deno.land/std@0.207.0/assert/mod.ts",
+    "mock": "https://deno.land/std@0.207.0/testing/mock.ts"
   }
 }

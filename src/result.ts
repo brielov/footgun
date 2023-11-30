@@ -76,7 +76,10 @@ export class Result<T extends Defined, E extends Defined> {
    * const isOk = okResult.isOk(); // Returns: true
    */
   isOk(): boolean {
-    return this.match(() => true, () => false);
+    return this.match(
+      () => true,
+      () => false,
+    );
   }
 
   /**
@@ -101,7 +104,10 @@ export class Result<T extends Defined, E extends Defined> {
    * const isErr = errResult.isErr(); // Returns: true
    */
   isErr(): boolean {
-    return this.match(() => false, () => true);
+    return this.match(
+      () => false,
+      () => true,
+    );
   }
 
   /**
@@ -246,7 +252,10 @@ export class Result<T extends Defined, E extends Defined> {
    * const value = okResult.expect("Expected the result to be Ok."); // Returns: 42
    */
   expect(message: string): T {
-    return this.match((value) => value, (error) => raise(message, error));
+    return this.match(
+      (value) => value,
+      (error) => raise(message, error),
+    );
   }
 
   /**
@@ -274,7 +283,10 @@ export class Result<T extends Defined, E extends Defined> {
    * const error = errResult.expectErr("Expected the result to be Err."); // Returns: "Error message"
    */
   expectErr(message: string): E {
-    return this.match((value) => raise(message, value), (error) => error);
+    return this.match(
+      (value) => raise(message, value),
+      (error) => error,
+    );
   }
 
   /**
@@ -304,7 +316,10 @@ export class Result<T extends Defined, E extends Defined> {
    * const result = okResultA.and(okResultB); // Returns: Result.Ok("Hello")
    */
   and<U extends Defined>(res: Result<U, E>): Result<U, E> {
-    return this.match(() => res, () => this as unknown as Result<U, E>);
+    return this.match(
+      () => res,
+      () => this as unknown as Result<U, E>,
+    );
   }
 
   /**
@@ -333,7 +348,10 @@ export class Result<T extends Defined, E extends Defined> {
    * const result = errResultA.or(errResultB); // Returns: Result.Err("Error message")
    */
   or<F extends Defined>(res: Result<T, F>): Result<T, F> {
-    return this.match(() => this as unknown as Result<T, F>, () => res);
+    return this.match(
+      () => this as unknown as Result<T, F>,
+      () => res,
+    );
   }
 
   /**
@@ -360,7 +378,10 @@ export class Result<T extends Defined, E extends Defined> {
    * const value = okResult.unwrapOr(0); // Returns: 42
    */
   unwrapOr(defaultValue: T): T {
-    return this.match((value) => value, () => defaultValue);
+    return this.match(
+      (value) => value,
+      () => defaultValue,
+    );
   }
 
   /**

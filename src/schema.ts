@@ -10,6 +10,7 @@ import {
   isNumber,
   isObject,
   isString,
+  isUndefined,
 } from "./util.ts";
 
 export type ParseError = {
@@ -28,8 +29,7 @@ export interface ObjectSchema<T extends PlainObject> extends Schema<T> {
 }
 
 type Shape<T extends PlainObject> = {
-  [K in keyof T]: T[K] extends Defined ? Schema<T[K]>
-    : never;
+  [K in keyof T]: T[K] extends Defined ? Schema<T[K]> : never;
 };
 
 export type Infer<T> = T extends Schema<infer U> ? U : never;
@@ -39,32 +39,152 @@ type InferTuple<T> = T extends [Schema<infer A>, ...infer B]
   : [];
 
 // deno-lint-ignore no-explicit-any
-type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends
-  ((k: infer I) => void) ? I : never;
+type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
+  k: infer I,
+) => void
+  ? I
+  : never;
 
 // deno-lint-ignore ban-types
 type Prettify<T> = { [K in keyof T]: T[K] } & {};
+
+type Pipe<T extends Defined> = (input: T) => Result<T, string>;
+type Pipeline<T extends Defined> = ReadonlyArray<Pipe<T>>;
 
 function createErr(message: string, input: unknown): Result<never, ParseError> {
   return Err({ path: [], message, input });
 }
 
-export const string = (message = "Expected string"): Schema<string> => ({
+function runPipeline<T extends Defined>(
+  value: T,
+  pipeline: Pipeline<T>,
+): Result<T, string> {
+  let acc = value;
+  for (const pipe of pipeline) {
+    const result = pipe(acc);
+    if (result.isErr()) return result;
+    acc = result.unwrap();
+  }
+  return Ok(acc);
+}
+
+const COERCE: Record<string, (input: unknown) => unknown> = {
+  number: (input) => Number(input),
+  string: (input) => String(input),
+  date: (input) =>
+    isString(input) || isNumber(input) ? new Date(input) : input,
+  boolean: (input) =>
+    (isString(input) &&
+      ["on", "yes", "true"].includes(input.trim().toLowerCase())) ||
+    Boolean(input),
+  list: (input) => (isArray(input) ? input : [input]),
+};
+
+export function coerce<T extends Defined>(schema: Schema<T>): Schema<T> {
+  const coerceFn = COERCE[schema.name];
+  if (isUndefined(coerceFn)) {
+    throw new Error(`Cannot coerce type ${schema.name}`);
+  }
+  return {
+    ...schema,
+    parse: (input) => schema.parse(coerceFn(input)),
+  };
+}
+
+export const string = (
+  pipeline: Pipeline<string> = [],
+  message = "Expected string",
+): Schema<string> => ({
   name: "string",
-  parse: (input) => isString(input) ? Ok(input) : createErr(message, input),
+  parse: (input) => {
+    if (!isString(input)) return createErr(message, input);
+    return runPipeline(input, pipeline).mapErr((message) => ({
+      path: [],
+      message,
+      input,
+    }));
+  },
 });
 
-export const number = (message = "Expected number"): Schema<number> => ({
-  name: "number",
-  parse: (input) =>
-    isNumber(input) && Number.isFinite(input)
+export const minLength =
+  (
+    min: number,
+    message = `Expected string to have a minimum of ${min} characters`,
+  ): Pipe<string> =>
+  (input) =>
+    input.length < min ? Err(message) : Ok(input);
+
+export const maxLength =
+  (
+    max: number,
+    message = `Expected string to have a maximum of ${max} characters`,
+  ): Pipe<string> =>
+  (input) =>
+    input.length > max ? Err(message) : Ok(input);
+
+export const trim = (): Pipe<string> => (input) => Ok(input.trim());
+export const lowercase = (): Pipe<string> => (input) => Ok(input.toLowerCase());
+export const uppercase = (): Pipe<string> => (input) => Ok(input.toUpperCase());
+
+const EMAIL_REGEX =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$/;
+
+export const email =
+  (message = "Expected string to be a valid email address"): Pipe<string> =>
+  (input) => {
+    return EMAIL_REGEX.test(input) &&
+      input.indexOf("@") !== 0 &&
+      input.lastIndexOf(".") > input.indexOf("@")
       ? Ok(input)
-      : createErr(message, input),
+      : Err(message);
+  };
+
+export const number = (
+  pipeline: Pipeline<number> = [],
+  message = "Expected number",
+): Schema<number> => ({
+  name: "number",
+  parse: (input) => {
+    if (!isNumber(input) || !Number.isFinite(input)) {
+      return createErr(message, input);
+    }
+    return runPipeline(input, pipeline).mapErr((message) => ({
+      path: [],
+      message,
+      input,
+    }));
+  },
 });
+
+export const min =
+  (
+    min: number,
+    message = `Expected number to be at minimum ${min}`,
+  ): Pipe<number> =>
+  (input) =>
+    input < min ? Err(message) : Ok(input);
+
+export const max =
+  (
+    max: number,
+    message = `Expected number to be at maximum ${max}`,
+  ): Pipe<number> =>
+  (input) =>
+    input > max ? Err(message) : Ok(input);
+
+export const integer =
+  (message = "Expecting number to be an integer"): Pipe<number> =>
+  (input) =>
+    Number.isInteger(input) ? Ok(input) : Err(message);
+
+export const clamp =
+  (min: number, max: number): Pipe<number> =>
+  (input) =>
+    Ok(Math.max(min, Math.min(max, input)));
 
 export const boolean = (message = "Expected boolean"): Schema<boolean> => ({
   name: "boolean",
-  parse: (input) => isBoolean(input) ? Ok(input) : createErr(message, input),
+  parse: (input) => (isBoolean(input) ? Ok(input) : createErr(message, input)),
 });
 
 export const date = (message = "Expected date"): Schema<Date> => ({
@@ -131,7 +251,7 @@ export const defaulted = <T extends Defined>(
   defaultValue: T,
 ): Schema<T> => ({
   ...schema,
-  parse: (input) => isDefined(input) ? schema.parse(input) : Ok(defaultValue),
+  parse: (input) => (isDefined(input) ? schema.parse(input) : Ok(defaultValue)),
 });
 
 export const pick = <T extends PlainObject, K extends keyof T>(
@@ -162,7 +282,7 @@ export const omit = <T extends PlainObject, K extends keyof T>(
   return object(nextShape, message);
 };
 
-export const literal = <T extends (number | string | boolean)>(
+export const literal = <T extends number | string | boolean>(
   constant: T,
   message = `Expecting literal ${constant}`,
 ): Schema<T> => ({
